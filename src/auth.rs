@@ -55,7 +55,7 @@ mod test {
 
     #[test]
     fn test_authentication_fairing_unauthorized() {
-        let client = Client::tracked(rocket().mount("/", routes![test_auth]))
+        let client = Client::tracked(rocket_test().mount("/", routes![test_auth]))
             .expect("valid rocket instance");
         let response = client.get(uri!(test_auth)).dispatch();
         assert_eq!(response.status(), Status::Unauthorized);
