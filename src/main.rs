@@ -5,13 +5,12 @@ extern crate rocket;
 mod auth;
 mod config;
 mod deployment_routes;
-mod deployment_service;
-mod ingress_service;
+mod deployment;
 
 use config::{AuthorizationConfig, Configuration};
 use deployment_routes::deploy;
-use deployment_service::DeploymentService;
-use ingress_service::NginxStaticSiteIngressService;
+use deployment::DeploymentService;
+use deployment::ingress::NginxStaticSiteIngressService;
 use rocket::fairing::AdHoc;
 
 #[launch]

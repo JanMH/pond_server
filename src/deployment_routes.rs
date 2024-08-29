@@ -9,7 +9,7 @@ use rocket::tokio::task;
 use rocket::State;
 
 use crate::auth::AuthenticatedUser;
-use crate::deployment_service::{Deployment, DeploymentService};
+use crate::deployment::{Deployment, DeploymentService};
 
 lazy_static! {
     static ref NAME_VALIDATION_REGEX: Regex = Regex::new("[a-zA-Z-]{3,50}").unwrap();

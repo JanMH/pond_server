@@ -2,8 +2,9 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
 };
+pub mod ingress;
 
-use crate::ingress_service::StaticSiteIngressService;
+use ingress::StaticSiteIngressService;
 
 pub struct DeploymentService {
     root_domain_name: String,
