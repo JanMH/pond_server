@@ -1,7 +1,8 @@
 [default]
 address = "127.0.0.1"
 limits = { form = "64 kB", json = "1 MiB" }
-scripts_path= "/scripts"
+scripts_path = "/scripts"
+root_domain_name = "local.host"
 
 [test]
-access_token="test_access_token"
+access_token = "test_access_token"

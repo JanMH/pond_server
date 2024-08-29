@@ -11,6 +11,8 @@ use rocket::{
 pub struct Configuration {
     #[serde(default = "scripts")]
     pub scripts_path: String,
+    
+    pub root_domain_name: String
 }
 
 fn scripts() -> String {

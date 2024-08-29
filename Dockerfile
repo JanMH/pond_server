@@ -22,6 +22,6 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     cargo build --release
     
 FROM alpine:latest
-COPY --from=builder /app/target/release/deployer_server /bin/deployer_server
-ENV ROCKET_SCRIPTS_PATH=/scripts
-ENTRYPOINT [ "/bin/deployer_server" ]
+COPY --from=builder /app/target/release/pond_server /bin/pond_server
+ENV POND_SCRIPTS_PATH=/scripts
+ENTRYPOINT [ "/bin/pond_server" ]
