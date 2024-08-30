@@ -2,13 +2,15 @@
 extern crate rocket;
 
 
-mod auth;
 mod config;
-mod deployment_routes;
 mod deployment;
+mod http;
+mod message;
+
+use std::sync::Arc;
 
 use config::{AuthorizationConfig, Configuration};
-use deployment_routes::deploy;
+use http::deployment_routes::deploy;
 use deployment::DeploymentService;
 use deployment::ingress::NginxStaticSiteIngressService;
 use rocket::fairing::AdHoc;
@@ -22,7 +24,7 @@ fn rocket() -> _ {
 
     rocket::custom(figment)
         .mount("/", routes![deploy])
-        .manage(deployer)
+        .manage(Arc::new(deployer))
         .attach(AdHoc::config::<AuthorizationConfig>())
 }
 

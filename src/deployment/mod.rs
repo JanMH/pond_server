@@ -4,7 +4,10 @@ use std::{
 };
 pub mod ingress;
 
+mod helpers;
+
 use ingress::StaticSiteIngressService;
+use crate::message::MessageSender;
 
 pub struct DeploymentService {
     root_domain_name: String,
@@ -21,7 +24,6 @@ impl DeploymentService {
         scripts_path: impl AsRef<Path>,
         ingress_service: Box<dyn StaticSiteIngressService + 'static + Send + Sync>,
     ) -> DeploymentService {
-
         DeploymentService {
             root_domain_name: root_domain_name.to_owned(),
             scripts_path: scripts_path.as_ref().to_owned(),
@@ -29,9 +31,10 @@ impl DeploymentService {
         }
     }
 
-    pub fn deploy_static(&self, deployment: &Deployment) -> anyhow::Result<String> {
+    pub fn deploy_static(&self, deployment: &Deployment, message_stream: MessageSender) -> anyhow::Result<String> {
         let script_location = self.scripts_path.join("static_site.sh");
         info!("Launching command {:?}", script_location);
+        
         let result = Command::new(script_location)
             .env(DEPLOYMENT_NAME, &deployment.name)
             .env(ARTIFACT_LOCATION, &deployment.path)
@@ -45,6 +48,7 @@ impl DeploymentService {
             &deployment.name,
             &deployment.path,
             &[&domain_name],
+            message_stream
         ).inspect_err(|e| error!("Failed to add ingress for deployment {}. Error: {}", deployment.name, e) )?;
         Ok(String::from_utf8_lossy(&result.stdout).into_owned())
     }

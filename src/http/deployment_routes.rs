@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use lazy_static::lazy_static;
 use regex::Regex;
 use rocket::form::Error;
@@ -6,10 +8,12 @@ use rocket::fs::TempFile;
 use rocket::http::Status;
 use rocket::response::status::Custom;
 use rocket::tokio::task;
-use rocket::State;
+use rocket::{State};
 
-use crate::auth::AuthenticatedUser;
+
+use super::auth::AuthenticatedUser;
 use crate::deployment::{Deployment, DeploymentService};
+use crate::message::{message_channel, MessageReceiver};
 
 lazy_static! {
     static ref NAME_VALIDATION_REGEX: Regex = Regex::new("[a-zA-Z-]{3,50}").unwrap();
@@ -41,11 +45,12 @@ struct DeploymentInformation<'r> {
 }
 
 #[post("/deploy", data = "<request>")]
-pub async fn deploy(
+pub fn deploy(
     _user: AuthenticatedUser,
     request: Form<DeploymentRequest<'_>>,
-    deployment_service: &State<DeploymentService>,
-) -> Result<String, Custom<String>> {
+    deployment_service: &State<Arc<DeploymentService>>,
+) -> Result<MessageReceiver, Custom<String>> {
+    let (stream, receiver) = message_channel();
     let path = request.artifact.path().unwrap().to_owned();
     match request.deployment_information.deployment_type {
         "static" => {}
@@ -54,20 +59,15 @@ pub async fn deploy(
             "Unknown deployment type: ".to_owned() + request.deployment_information.deployment_type,
         ))?,
     }
-
-    let result = task::block_in_place::<_, Result<String, anyhow::Error>>(move || {
-        let deployment = Deployment {
-            name: request.deployment_information.name.to_owned(),
-            path,
-        };
-        deployment_service.deploy_static(&deployment)
-    })
-    .map_err(|e| {
-        Custom(
-            Status::InternalServerError,
-            "Deployment command failed  ".to_owned() + &e.to_string(),
-        )
-    })?;
-
-    Ok(result)
+    let deployment_service: Arc<DeploymentService> = Arc::clone(deployment_service);
+    let deployment = Deployment {
+        name: request.deployment_information.name.to_owned(),
+        path,
+    };
+    task::spawn_blocking::<_, Result<(), anyhow::Error>>(move || {
+        let result = deployment_service.deploy_static(&deployment, stream);
+        info!("Deployment finished with result {:?}", result);
+        Ok(())
+    });
+    Ok(receiver)
 }
