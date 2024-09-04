@@ -8,8 +8,8 @@ use rocket::fs::TempFile;
 use rocket::http::Status;
 use rocket::response::status::Custom;
 use rocket::tokio::task;
-use rocket::{State};
-
+use rocket::State;
+use serde::Deserialize;
 
 use super::auth::AuthenticatedUser;
 use crate::deployment::{Deployment, DeploymentService};
@@ -33,36 +33,48 @@ fn validate_regex<'a>(
 
 #[derive(Debug, FromForm)]
 pub struct DeploymentRequest<'r> {
-    deployment_information: DeploymentInformation<'r>,
+    manifest: &'r str,
     artifact: TempFile<'r>,
 }
 
-#[derive(Debug, FromForm)]
-struct DeploymentInformation<'r> {
-    #[field(validate = validate_regex(&NAME_VALIDATION_REGEX, "Name must match"))]
-    name: &'r str,
-    deployment_type: &'r str,
+#[derive(Debug, Deserialize)]
+struct DeploymentInformation {
+    name: String,
+    deployment_type: String,
+    domain_names: Option<Vec<String>>,
 }
 
 #[post("/deploy", data = "<request>")]
-pub fn deploy(
+pub fn deploy<'r>(
     _user: AuthenticatedUser,
-    request: Form<DeploymentRequest<'_>>,
+    request: Form<DeploymentRequest<'r>>,
     deployment_service: &State<Arc<DeploymentService>>,
 ) -> Result<MessageReceiver, Custom<String>> {
+    let req = request.manifest;
+
+    let deployment_information: DeploymentInformation =
+        toml::from_str::<DeploymentInformation>(request.manifest).map_err(|e| {
+            Custom(
+                Status::BadRequest,
+                format!("Invalid manifest file: {:?}", e),
+            )
+        })?;
+
     let (stream, receiver) = message_channel();
     let path = request.artifact.path().unwrap().to_owned();
-    match request.deployment_information.deployment_type {
+    match deployment_information.deployment_type.as_str() {
         "static" => {}
         _ => Err(Custom(
             Status::BadRequest,
-            "Unknown deployment type: ".to_owned() + request.deployment_information.deployment_type,
+            "Unknown deployment type: ".to_owned() + &deployment_information.deployment_type,
         ))?,
     }
     let deployment_service: Arc<DeploymentService> = Arc::clone(deployment_service);
     let deployment = Deployment {
-        name: request.deployment_information.name.to_owned(),
-        path,
+        name: deployment_information.name.to_owned(),
+        deployment_type: deployment_information.deployment_type.to_owned(),
+        domain_names: deployment_information.domain_names.clone(),
+        artifact_path: path,
     };
     task::spawn_blocking::<_, Result<(), anyhow::Error>>(move || {
         let result = deployment_service.deploy_static(&deployment, stream);

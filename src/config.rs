@@ -3,7 +3,8 @@ use rocket::{
         providers::{Env, Format, Toml},
         Figment,
     },
-    serde::Deserialize, Config,
+    serde::Deserialize,
+    Config,
 };
 
 #[derive(Deserialize)]
@@ -11,8 +12,8 @@ use rocket::{
 pub struct Configuration {
     #[serde(default = "scripts")]
     pub scripts_path: String,
-    
-    pub root_domain_name: String
+
+    pub root_domain_name: String,
 }
 
 fn scripts() -> String {
@@ -38,8 +39,7 @@ fn profile_name() -> String {
         profile
     } else if cfg!(test) {
         "test".to_owned()
-    } 
-    else if cfg!(debug_assertions) {
+    } else if cfg!(debug_assertions) {
         "debug".to_owned()
     } else {
         "release".to_owned()

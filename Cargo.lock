@@ -838,6 +838,7 @@ dependencies = [
  "regex",
  "rocket",
  "serde",
+ "toml",
 ]
 
 [[package]]

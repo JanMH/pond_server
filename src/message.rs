@@ -5,18 +5,18 @@ use std::{
         mpsc::{channel, Receiver, Sender, TryRecvError},
         Arc, Mutex,
     },
-    task::Poll
+    task::Poll,
 };
 
 #[cfg(test)]
 use std::time::Duration;
 
-use rocket::tokio::{io::{AsyncRead, ReadBuf}, task::block_in_place};
-
-use rocket::{
-    response::Responder,
-    Response,
+use rocket::tokio::{
+    io::{AsyncRead, ReadBuf},
+    task::block_in_place,
 };
+
+use rocket::{response::Responder, Response};
 
 #[derive(Clone)]
 struct MutexVecDequeWrite {
@@ -55,36 +55,35 @@ pub struct MutexVecDequeRead {
 }
 
 impl AsyncRead for MutexVecDequeRead {
-     fn poll_read(
+    fn poll_read(
         self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
         buf: &mut ReadBuf,
     ) -> std::task::Poll<io::Result<()>> {
         {
-        let mut inner = self
-            .inner
-            .lock()
-            .map_err(|_e| io::Error::other("Mutex is poisoned"))?;
-        if !inner.is_empty() {
-            let (left, _) = inner.as_slices();
-            let len = left.len().min(buf.remaining());
-            buf.put_slice(&left[0..len]);
-            inner.drain(0..len);
-            return Poll::Ready(Ok(()));
+            let mut inner = self
+                .inner
+                .lock()
+                .map_err(|_e| io::Error::other("Mutex is poisoned"))?;
+            if !inner.is_empty() {
+                let (left, _) = inner.as_slices();
+                let len = left.len().min(buf.remaining());
+                buf.put_slice(&left[0..len]);
+                inner.drain(0..len);
+                return Poll::Ready(Ok(()));
+            }
         }
-        }
-        
+
         if self.notify.try_recv() == Err(TryRecvError::Disconnected) {
             return Poll::Ready(Ok(()));
         }
-        
+
         let waker = cx.waker().clone();
-        block_in_place(move ||{
+        block_in_place(move || {
             self.notify.recv().ok();
             waker.wake();
             self.poll_read(cx, buf)
         })
-        
     }
 }
 
