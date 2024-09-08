@@ -4,11 +4,11 @@ use std::{
     thread,
 };
 
-use crate::message::MessageSender;
+use crate::deployers::DeploymentHandle;
 
 pub fn copy_command_results(
     mut command: Command,
-    mut message_stream: MessageSender,
+    mut message_stream: DeploymentHandle,
 ) -> std::io::Result<ExitStatus> {
     command.stdout(Stdio::piped()).stderr(Stdio::piped());
 
@@ -34,7 +34,7 @@ mod test {
     use super::*;
     use std::{io, process::Command};
 
-    use crate::message::message_channel;
+    use crate::deployers::handle::message_channel;
 
     #[test]
     fn test_run_command() {

@@ -2,21 +2,14 @@ use std::{
     collections::VecDeque,
     io::{self, Read, Write},
     sync::{
-        mpsc::{channel, Receiver, Sender, TryRecvError},
+        mpsc::{channel, Receiver, Sender},
         Arc, Mutex,
-    },
-    task::Poll,
+    }
 };
 
 #[cfg(test)]
 use std::time::Duration;
 
-use rocket::tokio::{
-    io::{AsyncRead, ReadBuf},
-    task::block_in_place,
-};
-
-use rocket::{response::Responder, Response};
 
 #[derive(Clone)]
 struct MutexVecDequeWrite {
@@ -52,39 +45,6 @@ impl Write for MutexVecDequeWrite {
 pub struct MutexVecDequeRead {
     inner: Arc<Mutex<VecDeque<u8>>>,
     notify: Receiver<()>,
-}
-
-impl AsyncRead for MutexVecDequeRead {
-    fn poll_read(
-        self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-        buf: &mut ReadBuf,
-    ) -> std::task::Poll<io::Result<()>> {
-        {
-            let mut inner = self
-                .inner
-                .lock()
-                .map_err(|_e| io::Error::other("Mutex is poisoned"))?;
-            if !inner.is_empty() {
-                let (left, _) = inner.as_slices();
-                let len = left.len().min(buf.remaining());
-                buf.put_slice(&left[0..len]);
-                inner.drain(0..len);
-                return Poll::Ready(Ok(()));
-            }
-        }
-
-        if self.notify.try_recv() == Err(TryRecvError::Disconnected) {
-            return Poll::Ready(Ok(()));
-        }
-
-        let waker = cx.waker().clone();
-        block_in_place(move || {
-            self.notify.recv().ok();
-            waker.wake();
-            self.poll_read(cx, buf)
-        })
-    }
 }
 
 impl MutexVecDequeRead {
@@ -140,12 +100,12 @@ impl Read for MutexVecDequeRead {
 }
 
 #[derive(Clone)]
-pub struct MessageSender {
+pub struct DeploymentHandle {
     inner_info: MutexVecDequeWrite,
     inner_error: MutexVecDequeWrite,
 }
 
-impl MessageSender {
+impl DeploymentHandle {
     pub fn info(&mut self) -> &mut dyn Write {
         &mut self.inner_info
     }
@@ -154,13 +114,13 @@ impl MessageSender {
     }
 }
 
-pub struct MessageReceiver {
+pub struct DeploymentLogs {
     inner_info: MutexVecDequeRead,
     inner_error: MutexVecDequeRead,
 }
 
 #[allow(unused)]
-impl MessageReceiver {
+impl DeploymentLogs {
     pub fn info(&mut self) -> &mut dyn Read {
         &mut self.inner_info
     }
@@ -174,18 +134,9 @@ impl MessageReceiver {
     }
 }
 
-impl<'r> Responder<'r, 'r> for MessageReceiver {
-    fn respond_to(self, _request: &'r rocket::Request<'_>) -> rocket::response::Result<'r> {
-        Ok(Response::build()
-            .streamed_body(self.into_read().0)
-            .finalize())
-    }
-}
-
 fn vec_deque_channel() -> (MutexVecDequeWrite, MutexVecDequeRead) {
     let (s, r) = channel();
     let m: Arc<Mutex<VecDeque<u8>>> = Default::default();
-
     (
         MutexVecDequeWrite {
             inner: m.clone(),
@@ -198,16 +149,16 @@ fn vec_deque_channel() -> (MutexVecDequeWrite, MutexVecDequeRead) {
     )
 }
 
-pub fn message_channel() -> (MessageSender, MessageReceiver) {
+pub fn message_channel() -> (DeploymentHandle, DeploymentLogs) {
     let info = vec_deque_channel();
     let err = vec_deque_channel();
 
     (
-        MessageSender {
+        DeploymentHandle {
             inner_info: info.0,
             inner_error: err.0,
         },
-        MessageReceiver {
+        DeploymentLogs {
             inner_info: info.1,
             inner_error: err.1,
         },

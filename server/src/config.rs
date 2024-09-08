@@ -7,18 +7,6 @@ use rocket::{
     Config,
 };
 
-#[derive(Deserialize)]
-#[serde(crate = "rocket::serde")]
-pub struct Configuration {
-    #[serde(default = "scripts")]
-    pub scripts_path: String,
-
-    pub root_domain_name: String,
-}
-
-fn scripts() -> String {
-    "./scripts".to_owned()
-}
 
 #[derive(Deserialize)]
 #[serde(crate = "rocket::serde")]

@@ -1,20 +1,19 @@
 use handlebars::Handlebars;
-use rocket::serde::Serialize;
+use serde::Serialize;
 use std::{
-    path::{Path, PathBuf},
-    process::Command,
+    io, path::{Path, PathBuf}, process::Command
 };
 
-use crate::message::MessageSender;
+use crate::deployers::DeploymentHandle;
 
 pub trait StaticSiteIngressService {
     fn add_static_site_ingress(
         &self,
         deployment_name: &str,
         disk_location: &Path,
-        domain_names: &[&str],
-        message_stream: MessageSender,
-    ) -> anyhow::Result<()>;
+        domain_names: &[String],
+        message_stream: DeploymentHandle,
+    ) -> io::Result<()>;
 }
 
 pub struct NginxStaticSiteIngressService {
@@ -25,6 +24,7 @@ pub struct NginxStaticSiteIngressService {
 }
 
 impl NginxStaticSiteIngressService {
+    
     pub fn new() -> NginxStaticSiteIngressService {
         NginxStaticSiteIngressService {
             handlebars: Handlebars::new(),
@@ -35,9 +35,9 @@ impl NginxStaticSiteIngressService {
     }
     fn run_certbot(
         &self,
-        domain_names: &[&str],
-        message_stream: &mut MessageSender,
-    ) -> anyhow::Result<()> {
+        domain_names: &[String],
+        message_stream: &mut DeploymentHandle,
+    ) -> io::Result<()> {
         let mut command = Command::new(&self.certbot_command_name);
         command.args(["--nginx", "-n"]);
 
@@ -55,9 +55,9 @@ impl StaticSiteIngressService for NginxStaticSiteIngressService {
         &self,
         deployment_name: &str,
         disk_location: &Path,
-        domain_names: &[&str],
-        mut message_stream: MessageSender,
-    ) -> anyhow::Result<()> {
+        domain_names: &[String],
+        mut message_stream: DeploymentHandle,
+    ) -> io::Result<()> {
         write!(message_stream.info(), "Configuring nginx").ok();
 
         let data = NginxStaticSiteDeploymentData {
@@ -69,7 +69,7 @@ impl StaticSiteIngressService for NginxStaticSiteIngressService {
         let config = self.handlebars.render_template(
             include_str!("./static_site_nginx_template.handlebars"),
             &data,
-        )?;
+        ).unwrap();
 
         let sites_available_path = self
             .nginx_sites_available
@@ -116,7 +116,7 @@ mod test {
 
     #[test]
     fn test_happy_path() {
-        let (message_stream, mut message_consumer) = crate::message::message_channel();
+        let (message_stream, mut message_consumer) = crate::deployers::handle::message_channel();
 
         let mut service = NginxStaticSiteIngressService::new();
         service.nginx_sites_available = std::env::temp_dir().join("sites-available");
@@ -131,7 +131,7 @@ mod test {
             .add_static_site_ingress(
                 "test_site",
                 "/var/www/test_site".as_ref(),
-                &["domain_name"],
+                &["domain_name".to_owned()],
                 message_stream,
             )
             .unwrap();

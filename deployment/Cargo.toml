@@ -1,0 +1,14 @@
+[package]
+name = "pond_deployment"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = { version = "1.0.86", features = ["backtrace"] }
+figment = "0.10.19"
+handlebars = "6.0.0"
+lazy_static = "1.5.0"
+log = "0.4.22"
+regex = "1.10.6"
+serde = { version = "1.0.209", features = ["derive"] }
+toml = "0.8.19"
