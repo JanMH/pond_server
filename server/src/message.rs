@@ -1,38 +1,33 @@
 use std::{
     io::{self, Read},
     sync::{
-        mpsc::{channel, Receiver},
-        Mutex,
+        Arc, Mutex
     },
     task::Poll,
-    usize,
 };
 
-use pond_deployment::{DeploymentLogs, LogStream};
+use pond_deployment::DeploymentLogs;
 use rocket::{
     response::Responder,
-    tokio::{
-        self,
-        io::{AsyncRead, ReadBuf}
-    },
+    tokio::io::{AsyncRead, ReadBuf},
     Response,
 };
 
-enum LogType {
-    Info(Vec<u8>),
-    Error(Vec<u8>),
-}
-
 pub struct AsyncLogStream {
-    receiver: Receiver<LogType>,
+    shared_state: Arc<Mutex<SharedState>>,
+}
+#[derive(Default)]
+struct SharedState {
+    buffer: Vec<u8>,
+    waker: Option<std::task::Waker>
 }
 
 impl AsyncLogStream {
     pub fn from_deployment_logs(deployment_logs: DeploymentLogs) -> Self {
         let (info, error) = deployment_logs.into_read();
-        let (sender, receiver) = channel();
-        let err_sender = sender.clone();
-
+        let shared_state: Arc<Mutex<SharedState>> = Default::default(); 
+        let info_shared = shared_state.clone();
+        let error_shared = shared_state.clone();
         std::thread::spawn(move || {
             let mut info = info;
             let mut buffer = vec![0; 4096];
@@ -41,8 +36,11 @@ impl AsyncLogStream {
                 if bytes_read == 0 {
                     break;
                 }
-                if let Err(_) = sender.send(LogType::Info(buffer[..bytes_read].to_vec())) {
-                    break;
+                
+                let mut locked = info_shared.lock().unwrap();
+                locked.buffer.extend_from_slice(&buffer[..bytes_read]);
+                if let Some(waker) = locked.waker.take() {
+                    waker.wake();
                 }
             }
         });
@@ -55,13 +53,16 @@ impl AsyncLogStream {
                 if bytes_read == 0 {
                     break;
                 }
-                if let Err(_) = err_sender.send(LogType::Error(buffer[..bytes_read].to_vec())) {
-                    break;
+                
+                let mut locked = error_shared.lock().unwrap();
+                locked.buffer.extend_from_slice(&buffer[..bytes_read]);
+                if let Some(waker) = locked.waker.take() {
+                    waker.wake();
                 }
             }
         });
 
-        Self { receiver }
+        Self { shared_state }
     }
 }
 
@@ -77,13 +78,16 @@ impl AsyncRead for AsyncLogStream {
         _cx: &mut std::task::Context<'_>,
         buf: &mut ReadBuf,
     ) -> Poll<io::Result<()>> {
-        tokio::task::block_in_place(|| match self.receiver.recv() {
-            Ok(LogType::Info(data)) | Ok(LogType::Error(data)) => {
-                buf.put_slice(&data);
-                Poll::Ready(Ok(()))
-            }
-            Err(_) => Poll::Ready(Ok(())),
-        })
+        let mut shared_state = self.shared_state.lock().unwrap();
+        if shared_state.buffer.is_empty() {
+            shared_state.waker = Some(_cx.waker().clone());
+            Poll::Pending
+        } else {
+            let bytes_to_read = std::cmp::min(shared_state.buffer.len(), buf.remaining());
+            buf.put_slice(&shared_state.buffer[..bytes_to_read]);
+            shared_state.buffer.drain(..bytes_to_read);
+            Poll::Ready(Ok(()))
+        }
     }
 }
 
