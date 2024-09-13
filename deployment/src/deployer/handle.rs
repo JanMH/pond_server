@@ -149,7 +149,7 @@ fn vec_deque_channel() -> (MutexVecDequeWrite, MutexVecDequeRead) {
     )
 }
 
-pub fn message_channel() -> (DeploymentHandle, DeploymentLogs) {
+pub fn deployment_handle() -> (DeploymentHandle, DeploymentLogs) {
     let info = vec_deque_channel();
     let err = vec_deque_channel();
 
@@ -172,7 +172,7 @@ mod test {
     use std::time::Duration;
     #[test]
     fn test_write_info_twice() {
-        let (mut stream, mut consumer) = message_channel();
+        let (mut stream, mut consumer) = deployment_handle();
         let mut clone = stream.clone();
 
         let mut output: VecDeque<u8> = VecDeque::new();
@@ -195,7 +195,7 @@ mod test {
 
     #[test]
     fn test_close_streams_first() {
-        let (mut stream, mut consumer) = message_channel();
+        let (mut stream, mut consumer) = deployment_handle();
 
         let mut output: VecDeque<u8> = VecDeque::new();
         let r_ref = &mut output;
@@ -216,7 +216,7 @@ mod test {
 
     #[test]
     fn test_close_streams_last() {
-        let (mut stream, mut consumer) = message_channel();
+        let (mut stream, mut consumer) = deployment_handle();
 
         let mut output: VecDeque<u8> = VecDeque::new();
         let r_ref = &mut output;

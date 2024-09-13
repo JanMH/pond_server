@@ -4,7 +4,7 @@ use std::{
     thread,
 };
 
-use crate::deployers::DeploymentHandle;
+use crate::deployer::DeploymentHandle;
 
 pub fn copy_command_results(
     mut command: Command,
@@ -34,13 +34,13 @@ mod test {
     use super::*;
     use std::{io, process::Command};
 
-    use crate::deployers::handle::message_channel;
+    use crate::deployer::handle::deployment_handle;
 
     #[test]
     fn test_run_command() {
         let mut command = Command::new("echo");
         command.arg("Hello!");
-        let (write, mut read) = message_channel();
+        let (write, mut read) = deployment_handle();
         copy_command_results(command, write).expect("Could not launch echo command");
 
         let output = io::read_to_string(read.info()).expect("Could not read command output");

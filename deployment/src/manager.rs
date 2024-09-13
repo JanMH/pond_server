@@ -1,6 +1,6 @@
 use std::{collections::HashMap, io, path::Path, sync::Arc, thread};
 
-use crate::{deployers::handle::message_channel, Deployer, DeploymentLogs, Manifest};
+use crate::{deployer::handle::deployment_handle, Deployer, DeploymentLogs, Manifest};
 
 pub struct DeploymentManager {
     deployers: HashMap<&'static str, Arc<dyn Deployer + Send + Sync>>,
@@ -27,7 +27,7 @@ impl DeploymentManager {
             .ok_or(DeploymentError::UnknownDeploymentType)?
             .clone();
         let artifact_location = artifact_location.to_owned();
-        let (mut handle, log) =  message_channel();
+        let (mut handle, log) =  deployment_handle();
         
         thread::spawn(move || {
             match deployer.deploy(manifest, &artifact_location, handle.clone()).map_err(|e| DeploymentError::IOError(e)) {

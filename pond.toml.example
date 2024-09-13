@@ -1,8 +1,11 @@
 [default]
 address = "127.0.0.1"
-limits = { form = "64 kB", json = "1 MiB" }
-scripts_path = "/scripts"
+scripts_location = "./scripts"
 root_domain_name = "local.host"
+
+
+[default.limits]
+file = "1GB"
 
 [test]
 access_token = "test_access_token"

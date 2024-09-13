@@ -1,9 +1,9 @@
-use std::{io, path::Path};
+use std::path::Path;
 
 use figment::Figment;
 
 use crate::{
-    deployers::StaticSiteDeployer, ingress::{NginxStaticSiteIngressService, StaticSiteIngressService}, DeploymentManager
+    deployer::StaticSiteDeployer, ingress::NginxStaticSiteIngressService, DeploymentManager
 };
 
 #[derive(Debug)]
@@ -16,7 +16,7 @@ const NGINX_CONFIG_DIR: &str = "nginx_config_dir";
 const NGINX_DEFAULT_CONFIG_DIR: &str = "/etc/nginx/";
 
 const SCRIPTS_LOCATION: &str = "scripts_location";
-const DEFAULT_SCRIPTS_LOCATION: &str = "scripts_location";
+const DEFAULT_SCRIPTS_LOCATION: &str = "./scripts";
 
 
 pub fn manager(figment: &Figment) -> Result<DeploymentManager, ConfigurationError> {

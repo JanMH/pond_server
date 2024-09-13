@@ -5,6 +5,7 @@ use std::{
 pub(crate) mod handle;
 pub use handle::{DeploymentLogs, DeploymentHandle};
 pub use handle::MutexVecDequeRead as LogStream;
+pub use handle::deployment_handle;
 
 use crate::Manifest;
 

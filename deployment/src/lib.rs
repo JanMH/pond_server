@@ -3,7 +3,7 @@ extern crate log;
 
 mod ingress;
 mod manager;
-mod deployers;
+mod deployer;
 mod manifest;
 mod helpers;
 
@@ -11,7 +11,8 @@ pub mod config;
 
 
 pub use manager::DeploymentManager;
-pub use deployers::DeploymentLogs;
-pub use deployers::LogStream;
-pub use deployers::Deployer;
+pub use deployer::DeploymentLogs;
+pub use deployer::deployment_handle;
+pub use deployer::LogStream;
+pub use deployer::Deployer;
 pub use manifest::Manifest;

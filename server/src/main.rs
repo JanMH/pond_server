@@ -5,8 +5,6 @@ mod config;
 mod http;
 mod message;
 
-use std::sync::Arc;
-
 use config::AuthorizationConfig;
 use http::deployment_routes::deploy;
 use rocket::fairing::AdHoc;

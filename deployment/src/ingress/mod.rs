@@ -4,7 +4,7 @@ use std::{
     io, path::{Path, PathBuf}, process::Command
 };
 
-use crate::deployers::DeploymentHandle;
+use crate::deployer::DeploymentHandle;
 
 pub trait StaticSiteIngressService {
     fn add_static_site_ingress(
@@ -116,7 +116,7 @@ mod test {
 
     #[test]
     fn test_happy_path() {
-        let (message_stream, mut message_consumer) = crate::deployers::handle::message_channel();
+        let (message_stream, mut message_consumer) = crate::deployer::deployment_handle();
 
         let mut service = NginxStaticSiteIngressService::new();
         service.nginx_sites_available = std::env::temp_dir().join("sites-available");
