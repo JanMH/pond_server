@@ -43,7 +43,7 @@ pub async fn deploy<'r>(
     )?;
 
     let result = deployment_service
-        .deploy(&request.manifest, &artifact_location)
+        .deploy(request.manifest, &artifact_location)
         .map_err(|e| {
             Custom(
                 Status::InternalServerError,
