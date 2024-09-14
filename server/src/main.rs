@@ -15,7 +15,7 @@ fn rocket() -> _ {
     let deployment_manager = match pond_deployment::config::manager(&figment) {
         Ok(manager) => manager,
         Err(e) => {
-            error!("Failed to create deployment manager: {:?}", e);
+            eprintln!("Failed to create deployment manager: {:?}", e);
             std::process::exit(1);
         }
     };

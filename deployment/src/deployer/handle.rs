@@ -1,15 +1,14 @@
 use std::{
     collections::VecDeque,
-    io::{self, Read, Write},
+    io::{self, stderr, stdout, Read, Stderr, Stdout, Write},
     sync::{
         mpsc::{channel, Receiver, Sender},
         Arc, Mutex,
-    }
+    },
 };
 
 #[cfg(test)]
 use std::time::Duration;
-
 
 #[derive(Clone)]
 struct MutexVecDequeWrite {
@@ -25,13 +24,13 @@ impl Drop for MutexVecDequeWrite {
 
 impl Write for MutexVecDequeWrite {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.inner
+        let result = self
+            .inner
             .lock()
             .map_err(|_e| std::io::Error::other("Failed to lock mutex"))?
-            .write(buf)
-            .inspect(|_b| {
-                self.notify.send(()).ok();
-            })
+            .write(buf);
+        self.notify.send(()).ok();
+        result
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
@@ -41,6 +40,26 @@ impl Write for MutexVecDequeWrite {
             .flush()
     }
 }
+
+struct TeeWrite<A: Write, B: Write> {
+    a: A,
+    b: B,
+}
+
+impl<A: Write, B: Write> Write for TeeWrite<A, B> {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let len = buf.len();
+        self.a.write_all(buf)?;
+        self.b.write_all(buf)?;
+        Ok(len)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.a.flush()?;
+        self.b.flush()
+    }
+}
+
 
 pub struct MutexVecDequeRead {
     inner: Arc<Mutex<VecDeque<u8>>>,
@@ -99,10 +118,23 @@ impl Read for MutexVecDequeRead {
     }
 }
 
-#[derive(Clone)]
 pub struct DeploymentHandle {
-    inner_info: MutexVecDequeWrite,
-    inner_error: MutexVecDequeWrite,
+    inner_info: TeeWrite<MutexVecDequeWrite, Stdout>,
+    inner_error: TeeWrite<MutexVecDequeWrite, Stderr>,
+}
+impl Clone for DeploymentHandle {
+    fn clone(&self) -> Self {
+        DeploymentHandle {
+            inner_info: TeeWrite {
+                a: self.inner_info.a.clone(),
+                b: stdout(),
+            },
+            inner_error: TeeWrite {
+                a: self.inner_error.a.clone(),
+                b: stderr(),
+            },
+        }
+    }
 }
 
 impl DeploymentHandle {
@@ -155,8 +187,14 @@ pub fn deployment_handle() -> (DeploymentHandle, DeploymentLogs) {
 
     (
         DeploymentHandle {
-            inner_info: info.0,
-            inner_error: err.0,
+            inner_info: TeeWrite {
+                a: info.0,
+                b: stdout(),
+            },
+            inner_error: TeeWrite {
+                a: err.0,
+                b: stderr(),
+            },
         },
         DeploymentLogs {
             inner_info: info.1,

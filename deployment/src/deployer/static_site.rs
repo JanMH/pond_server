@@ -5,7 +5,7 @@ use std::{
 };
 
 use crate::{
-    helpers::copy_command_results, ingress::StaticSiteIngressService, manager::RegisterDeployment,
+    helpers::run_command, ingress::StaticSiteIngressService, manager::RegisterDeployment,
 };
 
 use super::{Deployer, DeploymentHandle};
@@ -44,7 +44,7 @@ impl Deployer for StaticSiteDeployer {
             .env(DEPLOYMENT_NAME, &manifest.name)
             .env(ARTIFACT_LOCATION, artifact_location);
 
-        let exit_status = copy_command_results(script_command, deployment_handle.clone())
+        let exit_status = run_command(script_command, deployment_handle.clone())
             .inspect_err(|e| error!("Failed to run static site deployment script. Error: {}", e))?;
 
         if !exit_status.success() {

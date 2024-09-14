@@ -33,3 +33,19 @@ fn profile_name() -> String {
         "release".to_owned()
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_env_config_key() {
+        std::env::set_var("POND_LOG_LEVEL", "normal");
+        let figment = figment();
+        let extracted1: String = figment.extract_inner("log_level").unwrap();
+
+        let extracted = figment.extract::<Config>().unwrap();
+        assert_eq!(extracted1, "normal");
+        assert_eq!(extracted.log_level, rocket::config::LogLevel::Normal);
+    }
+}

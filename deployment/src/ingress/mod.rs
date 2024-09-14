@@ -45,7 +45,7 @@ impl NginxStaticSiteIngressService {
             command.args(["--domain", d]);
         }
 
-        super::helpers::copy_command_results(command, message_stream.clone()).ok();
+        super::helpers::run_command(command, message_stream.clone())?;
         Ok(())
     }
 }
@@ -79,7 +79,7 @@ impl StaticSiteIngressService for NginxStaticSiteIngressService {
             .join(deployment_name.to_owned() + ".conf");
 
         std::fs::write(&sites_available_path, config).inspect_err(|e| {
-            write!(
+            writeln!(
                 message_stream.error(),
                 "Failed to write file {:?} due to error: {:?}",
                 sites_available_path,
@@ -87,7 +87,7 @@ impl StaticSiteIngressService for NginxStaticSiteIngressService {
             )
             .ok();
         })?;
-        write!(message_stream.info(), "Enabling site through symlink").ok();
+        writeln!(message_stream.info(), "Enabling site through symlink").ok();
         if !sites_enabled_path.exists() {
             #[cfg(unix)]
             std::os::unix::fs::symlink(sites_available_path, sites_enabled_path)?;
@@ -95,8 +95,10 @@ impl StaticSiteIngressService for NginxStaticSiteIngressService {
             panic!("Windows not supported");
         }
 
-        write!(message_stream.info(), "Running certbot").ok();
+        writeln!(message_stream.info(), "Running certbot").ok();
         self.run_certbot(domain_names, &mut message_stream)?;
+        write!(message_stream.info(), "Completed running certbot").ok();
+
         Ok(())
     }
 }

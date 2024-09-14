@@ -1,12 +1,10 @@
 use std::{
-    panic,
-    process::{Command, ExitStatus, Stdio},
-    thread,
+    panic, process::{Command, ExitStatus, Stdio}, thread
 };
 
 use crate::deployer::DeploymentHandle;
 
-pub fn copy_command_results(
+pub fn run_command(
     mut command: Command,
     mut message_stream: DeploymentHandle,
 ) -> std::io::Result<ExitStatus> {
@@ -17,16 +15,25 @@ pub fn copy_command_results(
     let mut stderr = spawned.stderr.take().unwrap();
 
     let mut cloned = message_stream.clone();
-    let jh = thread::spawn(move || std::io::copy(&mut stderr, cloned.error()));
+    let err_jh = thread::spawn(move || {
+        std::io::copy(&mut stderr, cloned.error())?;
+        debug!("stderr copied");
+        Ok::<(), std::io::Error>(())
+    });
     std::io::copy(&mut stdout, message_stream.info())?;
-    match jh.join() {
+
+    let result = spawned
+        .wait()
+        .inspect(|_r| debug!("Command terminated successfully: {:?}", command))
+        .inspect_err(|e| error!("Command {:?} failed {:?}",command, e));
+    
+    match err_jh.join() {
         Ok(result) => {
             result?;
         }
         Err(e) => panic::resume_unwind(e),
     }
-
-    spawned.wait()
+    result
 }
 
 #[cfg(test)]
@@ -41,7 +48,7 @@ mod test {
         let mut command = Command::new("echo");
         command.arg("Hello!");
         let (write, mut read) = deployment_handle();
-        copy_command_results(command, write).expect("Could not launch echo command");
+        run_command(command, write).expect("Could not launch echo command");
 
         let output = io::read_to_string(read.info()).expect("Could not read command output");
         assert_eq!(output, "Hello!\n")

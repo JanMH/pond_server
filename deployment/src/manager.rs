@@ -30,9 +30,9 @@ impl DeploymentManager {
         let (mut handle, log) =  deployment_handle();
         
         thread::spawn(move || {
-            match deployer.deploy(manifest, &artifact_location, handle.clone()).map_err(DeploymentError::IOError) {
-                Ok(_) => write!(handle.info(), "Deployment succeeded").ok(),
-                Err(e) => write!(handle.error(), "Deployment failed: {:?}", e).ok(),
+            match deployer.deploy(manifest, &artifact_location, handle.clone()) {
+                Ok(_) => writeln!(handle.info(), "Deployment succeeded").ok(),
+                Err(e) => writeln!(handle.error(), "Deployment failed: {:?}", e).ok(),
             };
         });
         Ok(log)
