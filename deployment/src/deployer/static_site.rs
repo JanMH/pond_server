@@ -5,7 +5,7 @@ use std::{
 };
 
 use crate::{
-    helpers::run_command, ingress::StaticSiteIngressService, manager::RegisterDeployment,
+    helpers::run_command, ingress::static_site::StaticSiteIngressService, manager::RegisterDeployment,
 };
 
 use super::{Deployer, DeploymentHandle};
