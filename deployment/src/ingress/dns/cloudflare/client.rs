@@ -18,17 +18,20 @@ pub struct CloudflareClient {
 impl CloudflareClient {
     pub fn new(api_key: String) -> Self {
         let mut default_headers = HeaderMap::new();
-        default_headers.insert("Authorization", HeaderValue::from_str(&format!("Bearer {}", api_key)).unwrap());
+        default_headers.insert(
+            "Authorization",
+            HeaderValue::from_str(&format!("Bearer {}", api_key)).unwrap(),
+        );
 
         let api_client = reqwest::blocking::Client::builder()
-        .default_headers(default_headers)
-        .build()
-        .unwrap();
+            .default_headers(default_headers)
+            .build()
+            .unwrap();
 
         CloudflareClient {
             cloudflare_base_url: "https://api.cloudflare.com".to_string(),
             api_key,
-            api_client
+            api_client,
         }
     }
 
@@ -54,11 +57,7 @@ impl CloudflareClient {
             self.cloudflare_base_url, zone_id.0
         );
 
-        let response = self
-            .api_client
-            .post(&url)
-            .json(request)
-            .send()?;
+        let response = self.api_client.post(&url).json(request).send()?;
         let response = serde_json::from_reader(response)?;
         Ok(response)
     }
@@ -74,11 +73,7 @@ impl CloudflareClient {
             self.cloudflare_base_url, zone_id.0, record_id.0
         );
 
-        let response = self
-            .api_client
-            .patch(&url)
-            .json(request)
-            .send()?;
+        let response = self.api_client.patch(&url).json(request).send()?;
         let response = serde_json::from_reader(response)?;
         Ok(response)
     }
@@ -97,11 +92,7 @@ impl CloudflareClient {
         let page = page.to_string();
         let query_params = [("page", page.as_str()), ("name", domain_name)];
 
-        let response = self
-            .api_client
-            .get(&url)
-            .query(&query_params)
-            .send()?;
+        let response = self.api_client.get(&url).query(&query_params).send()?;
         let response = serde_json::from_reader(response)?;
 
         Ok(response)

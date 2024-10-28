@@ -1,4 +1,3 @@
-
 use lazy_static::lazy_static;
 use pond_deployment::DeploymentManager;
 use rand::distributions::DistString;
@@ -34,13 +33,17 @@ pub async fn deploy<'r>(
         "artifact-{}.tar.gz",
         rand::distributions::Alphanumeric.sample_string(&mut thread_rng(), 5)
     ));
-    
-    request.artifact.persist_to(&artifact_location).await.map_err(|e| 
-        Custom(
-            Status::InternalServerError,
-            format!("Failed to save artifact: {:?}", e)
-        )
-    )?;
+
+    request
+        .artifact
+        .persist_to(&artifact_location)
+        .await
+        .map_err(|e| {
+            Custom(
+                Status::InternalServerError,
+                format!("Failed to save artifact: {:?}", e),
+            )
+        })?;
 
     let result = deployment_service
         .deploy(request.manifest, &artifact_location)
@@ -50,6 +53,6 @@ pub async fn deploy<'r>(
                 format!("Failed to start deployment {:?}", e),
             )
         })?;
-    
+
     Ok(AsyncLogStream::from_deployment_logs(result))
 }

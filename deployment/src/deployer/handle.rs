@@ -60,7 +60,6 @@ impl<A: Write, B: Write> Write for TeeWrite<A, B> {
     }
 }
 
-
 pub struct MutexVecDequeRead {
     inner: Arc<Mutex<VecDeque<u8>>>,
     notify: Receiver<()>,

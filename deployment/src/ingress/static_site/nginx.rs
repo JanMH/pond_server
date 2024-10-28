@@ -243,7 +243,7 @@ mod test {
             ip_v6_address: None,
             dns_wait_timeout: std::time::Duration::from_secs(1),
             dns_fixed_wait_timeout: std::time::Duration::from_secs(0),
-            dns_use_fixed_wait_timeout: true
+            dns_use_fixed_wait_timeout: true,
         }
     }
 

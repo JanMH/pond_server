@@ -1,7 +1,6 @@
 mod nginx;
 pub use nginx::NginxStaticSiteIngressService;
 
-
 use std::io;
 use std::path::Path;
 

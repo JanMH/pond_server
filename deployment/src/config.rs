@@ -1,5 +1,3 @@
-use std::error;
-use figment::Figment;
 use crate::{
     deployer::StaticSiteDeployer,
     ingress::{
@@ -9,6 +7,8 @@ use crate::{
     },
     DeploymentManager,
 };
+use figment::Figment;
+use std::error;
 
 pub(crate) fn extract_inner_optional<T: serde::de::DeserializeOwned>(
     figment: &Figment,

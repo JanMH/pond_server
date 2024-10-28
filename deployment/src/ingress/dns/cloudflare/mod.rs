@@ -3,14 +3,13 @@ use client::{CloudflareDnsRecordBody, GetDnsRecord, ResultOrObject, Zone, ZoneId
 use figment::{providers::Serialized, Figment};
 use mockall_double::double;
 
-#[double]
-use client::CloudflareClient;
-
-use crate::config::ConfigurationError;
+mod client;
 
 use super::DnsService;
+use crate::config::ConfigurationError;
 
-mod client;
+#[double]
+use client::CloudflareClient;
 
 pub struct CloudflareDnsService {
     client: CloudflareClient,
@@ -26,15 +25,22 @@ impl CloudflareDnsService {
         let client = CloudflareClient::new(figment.extract_inner("cloudflare.api_key")?);
         let ttl = figment.extract_inner("cloudflare.dns_ttl")?;
         let proxied = figment.extract_inner("cloudflare.proxied")?;
-        Ok(Some(Self { client, ttl, proxied }))
+        Ok(Some(Self {
+            client,
+            ttl,
+            proxied,
+        }))
     }
-    
+
     pub fn figment_default_values() -> Figment {
-        Figment::from(Serialized::default("cloudflare", serde_json::json!({
-            "dns_ttl": 1,
-            "proxied": false,
-            "enabled": false
-        })))
+        Figment::from(Serialized::default(
+            "cloudflare",
+            serde_json::json!({
+                "dns_ttl": 1,
+                "proxied": false,
+                "enabled": false
+            }),
+        ))
     }
 }
 
@@ -78,9 +84,9 @@ impl CloudflareDnsService {
         }
 
         let mut zones = zones.result.unwrap().unwrap();
-        if zones.len() == 0 {
+        if zones.is_empty() {
             return Err(anyhow!(
-                "No zones listed for name {} -  {:?}",
+                "No zones listed for name {} - {:?}",
                 domain_name,
                 zones
             ));
@@ -90,7 +96,7 @@ impl CloudflareDnsService {
             return Err(anyhow!("Too many zones for domain {:?}", zones));
         }
 
-        return Ok(zones.pop().unwrap());
+        Ok(zones.pop().unwrap())
     }
 
     fn get_existing_records(
@@ -140,26 +146,30 @@ impl CloudflareDnsService {
         }
     }
 
-    fn update_dns_record(&self,
+    fn update_dns_record(
+        &self,
         zone_id: &ZoneId,
         record: GetDnsRecord,
-        ip_address: std::net::IpAddr,) -> anyhow::Result<()> {
-            let request = CloudflareDnsRecordBody {
-                type_: record.type_,
-                name: record.name,
-                comment: Some("Record updated by pond".to_string()),
-                content: ip_address.to_string(),
-                ttl: self.ttl,
-                proxied: self.proxied,
-            };
+        ip_address: std::net::IpAddr,
+    ) -> anyhow::Result<()> {
+        let request = CloudflareDnsRecordBody {
+            type_: record.type_,
+            name: record.name,
+            comment: Some("Record updated by pond".to_string()),
+            content: ip_address.to_string(),
+            ttl: self.ttl,
+            proxied: self.proxied,
+        };
 
-            let response = self.client.update_dns_record(zone_id, &record.id, &request)?;
-            if !response.success {
-                Err(anyhow!("Failed to create dns record for zone {}, domain {} and ip {:?} with the following response {:?}", zone_id.0, &request.name, ip_address, response))
-            } else {
-                Ok(())
-            }
+        let response = self
+            .client
+            .update_dns_record(zone_id, &record.id, &request)?;
+        if !response.success {
+            Err(anyhow!("Failed to create dns record for zone {}, domain {} and ip {:?} with the following response {:?}", zone_id.0, &request.name, ip_address, response))
+        } else {
+            Ok(())
         }
+    }
 }
 
 fn type_string(ip_address: std::net::IpAddr) -> &'static str {
@@ -192,7 +202,6 @@ impl DnsService for CloudflareDnsService {
 
         Ok(())
     }
-
 }
 
 #[cfg(test)]
@@ -202,7 +211,7 @@ mod tests {
     use client::{CloudflareListRecordsResponse, CloudflareListZonesResponse, RecordId};
 
     use super::*;
-    
+
     fn list_zones_response() -> CloudflareListZonesResponse {
         serde_json::from_str(client::testhelpers::LIST_ZONES_RESPONSE).unwrap()
     }
@@ -211,12 +220,12 @@ mod tests {
     fn the_happy_path_with_no_existing_records_works() {
         let mut mock = CloudflareClient::default();
 
-        mock.expect_list_zones().returning(|_| {
-            Ok(list_zones_response())
-        });
+        mock.expect_list_zones()
+            .returning(|_| Ok(list_zones_response()));
 
         mock.expect_list_dns_records().returning(|_, _, _| {
-            let mut records: CloudflareListRecordsResponse = serde_json::from_str(client::testhelpers::LIST_RECORDS_RESPONSE).unwrap();
+            let mut records: CloudflareListRecordsResponse =
+                serde_json::from_str(client::testhelpers::LIST_RECORDS_RESPONSE).unwrap();
             records.result = Some(ResultOrObject::Result(vec![]));
             Ok(records)
         });
@@ -231,9 +240,11 @@ mod tests {
             proxied: false,
         };
 
-        service.set_dns_record("example.com", IpAddr::from_str("127.0.0.1").unwrap()).unwrap();
+        service
+            .set_dns_record("example.com", IpAddr::from_str("127.0.0.1").unwrap())
+            .unwrap();
     }
-    
+
     #[test]
     fn test_base_domain_with_sub_sub_domain() {
         assert_eq!(base_domain("sub.sub.example.com"), "example.com");
@@ -245,7 +256,7 @@ mod tests {
 
         mock.expect_list_zones().returning(|_| {
             let mut response = list_zones_response();
-            
+
             response.result = Some(ResultOrObject::Result(vec![
                 Zone {
                     id: ZoneId("1".to_string()),
@@ -258,7 +269,7 @@ mod tests {
                     ..Default::default()
                 },
             ]));
-            
+
             Ok(response)
         });
 
@@ -297,7 +308,8 @@ mod tests {
         let mut mock = CloudflareClient::default();
 
         mock.expect_list_dns_records().returning(|_, _, _| {
-            let mut response: CloudflareListRecordsResponse  = serde_json::from_str(client::testhelpers::LIST_RECORDS_RESPONSE).unwrap();
+            let mut response: CloudflareListRecordsResponse =
+                serde_json::from_str(client::testhelpers::LIST_RECORDS_RESPONSE).unwrap();
             response.result = Some(ResultOrObject::Result(vec![]));
             Ok(response)
         });
@@ -327,7 +339,11 @@ mod tests {
             proxied: false,
         };
 
-        let result = service.create_dns_record(&ZoneId("zone_id".to_string()), "example.com", IpAddr::from_str("127.0.0.1").unwrap());
+        let result = service.create_dns_record(
+            &ZoneId("zone_id".to_string()),
+            "example.com",
+            IpAddr::from_str("127.0.0.1").unwrap(),
+        );
         assert!(result.is_err());
     }
 
@@ -354,7 +370,11 @@ mod tests {
             proxied: true,
         };
 
-        let result = service.update_dns_record(&ZoneId("zone_id".to_string()), record, IpAddr::from_str("127.0.0.1").unwrap());
+        let result = service.update_dns_record(
+            &ZoneId("zone_id".to_string()),
+            record,
+            IpAddr::from_str("127.0.0.1").unwrap(),
+        );
         assert!(result.is_err());
     }
 }

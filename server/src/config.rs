@@ -7,7 +7,6 @@ use rocket::{
     Config,
 };
 
-
 #[derive(Deserialize)]
 #[serde(crate = "rocket::serde")]
 pub struct AuthorizationConfig {
@@ -20,7 +19,6 @@ pub fn figment() -> Figment {
         .merge(Toml::file(Env::var_or("POND_CONFIG", default_config_path)))
         .merge(Env::prefixed("POND_"))
 }
-
 
 #[cfg(test)]
 mod test {
