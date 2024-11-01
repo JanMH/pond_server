@@ -75,7 +75,7 @@ To build and install the server, you need to have [Rust](https://www.rust-lang.o
     ```
 7. Configure nginx and certbot to serve the deployed artifacts and enable ssh for the pond server.
 
-   Create the nginx configuration file at `/etc/nginx/sites-available/pond.your-domain.com`:
+   Create the nginx configuration file at `/etc/nginx/sites-available/pond.conf`:
     
     ```nginx
     server {
@@ -90,7 +90,7 @@ To build and install the server, you need to have [Rust](https://www.rust-lang.o
     Create a symlink to the sites-enabled directory:
 
     ```sh
-    sudo ln -s /etc/nginx/sites-available/pond.your-domain.com /etc/nginx/sites-enabled/
+    sudo ln -s /etc/nginx/sites-available/pond.conf /etc/nginx/sites-enabled/
     ```
     Create a certificate for the domain using certbot:
 

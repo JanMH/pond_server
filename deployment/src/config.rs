@@ -10,19 +10,6 @@ use crate::{
 use figment::Figment;
 use std::error;
 
-pub(crate) fn extract_inner_optional<T: serde::de::DeserializeOwned>(
-    figment: &Figment,
-    key: &str,
-) -> figment::Result<Option<T>> {
-    figment.extract_inner(key).or_else(|e| {
-        if matches!(e.kind, figment::error::Kind::MissingField(_)) {
-            Ok(None)
-        } else {
-            Err(e)
-        }
-    })
-}
-
 #[derive(Debug)]
 pub enum ConfigurationError {
     MissingConfigurationValue(String),

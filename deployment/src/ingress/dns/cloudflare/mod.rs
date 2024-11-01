@@ -2,6 +2,7 @@ use anyhow::anyhow;
 use client::{CloudflareDnsRecordBody, GetDnsRecord, ResultOrObject, Zone, ZoneId};
 use figment::{providers::Serialized, Figment};
 use mockall_double::double;
+use serde::{Deserialize, Serialize};
 
 mod client;
 
@@ -17,29 +18,44 @@ pub struct CloudflareDnsService {
     proxied: bool,
 }
 
+#[derive(Serialize, Deserialize)]
+struct CloudflareDnsServiceConfig {
+    #[serde(skip_serializing)]
+    api_key: String,
+    dns_ttl: u32,
+    proxied: bool,
+    enabled: bool,
+}
+
+impl Default for CloudflareDnsServiceConfig {
+    fn default() -> Self {
+        Self {
+            api_key: Default::default(),
+            dns_ttl: 300,
+            proxied: false,
+            enabled: false,
+        }
+    }
+}
+
 impl CloudflareDnsService {
     pub fn configure(figment: &Figment) -> Result<Option<Self>, ConfigurationError> {
         if figment.extract_inner::<bool>("cloudflare.enabled")? == false {
             return Ok(None);
         }
-        let client = CloudflareClient::new(figment.extract_inner("cloudflare.api_key")?);
-        let ttl = figment.extract_inner("cloudflare.dns_ttl")?;
-        let proxied = figment.extract_inner("cloudflare.proxied")?;
+        let configuration = figment.extract_inner::<CloudflareDnsServiceConfig>("cloudflare")?;
+        let client = CloudflareClient::new(configuration.api_key);
         Ok(Some(Self {
             client,
-            ttl,
-            proxied,
+            ttl: configuration.dns_ttl,
+            proxied: configuration.proxied,
         }))
     }
 
     pub fn figment_default_values() -> Figment {
         Figment::from(Serialized::default(
             "cloudflare",
-            serde_json::json!({
-                "dns_ttl": 1,
-                "proxied": false,
-                "enabled": false
-            }),
+            CloudflareDnsServiceConfig::default(),
         ))
     }
 }

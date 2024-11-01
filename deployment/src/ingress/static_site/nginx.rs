@@ -1,6 +1,6 @@
 use figment::{providers::Serialized, Figment};
 use handlebars::Handlebars;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{
     io,
     net::{IpAddr, Ipv4Addr, Ipv6Addr},
@@ -10,13 +10,8 @@ use std::{
     time::Duration,
 };
 
-use crate::{
-    config::{extract_inner_optional, ConfigurationError},
-    deployer::DeploymentHandle,
-    ingress::dns::DnsService,
-};
-
 use super::StaticSiteIngressService;
+use crate::{config::ConfigurationError, deployer::DeploymentHandle, ingress::dns::DnsService};
 
 pub struct NginxStaticSiteIngressService {
     handlebars: Handlebars<'static>,
@@ -37,22 +32,19 @@ impl NginxStaticSiteIngressService {
         dns_service: Box<dyn DnsService + 'static + Send + Sync>,
     ) -> Result<Self, ConfigurationError> {
         let handlebars = Handlebars::new();
-        let figment = figment.focus("nginx_ingress");
+        let config: NginxIngressConfig = figment.extract_inner("nginx_ingress")?;
+
         Ok(NginxStaticSiteIngressService {
             handlebars,
             dns_service,
-            certbot_command_name: figment.extract_inner("certbot_command_name")?,
-            nginx_sites_available: figment.extract_inner("sites_available_path")?,
-            nginx_sites_enabled: figment.extract_inner("sites_enabled_path")?,
-            ip_v4_address: extract_inner_optional(&figment, "ip_v4_address")?,
-            ip_v6_address: extract_inner_optional(&figment, "ip_v6_address")?,
-            dns_wait_timeout: Duration::from_secs(
-                figment.extract_inner("dns_wait_timeout_seconds")?,
-            ),
-            dns_fixed_wait_timeout: Duration::from_secs(
-                figment.extract_inner("dns_fixed_wait_timeout_seconds")?,
-            ),
-            dns_use_fixed_wait_timeout: figment.extract_inner("dns_use_fixed_wait_timeout")?,
+            certbot_command_name: config.certbot_command_name,
+            nginx_sites_available: config.sites_available_path,
+            nginx_sites_enabled: config.sites_enabled_path,
+            ip_v4_address: config.ip_v4_address,
+            ip_v6_address: config.ip_v6_address,
+            dns_wait_timeout: Duration::from_secs(config.dns_wait_timeout_seconds),
+            dns_fixed_wait_timeout: Duration::from_secs(config.dns_fixed_wait_timeout_seconds),
+            dns_use_fixed_wait_timeout: config.dns_use_fixed_wait_timeout,
         })
     }
 
@@ -75,7 +67,7 @@ impl NginxStaticSiteIngressService {
         deployment_handle: &mut DeploymentHandle,
     ) -> io::Result<()> {
         let mut command = Command::new(&self.certbot_command_name);
-        command.args(["--nginx", "-n"]);
+        command.args(["--nginx", "-n", "--expand"]);
 
         for d in domain_names {
             command.args(["--domain", d]);
@@ -148,6 +140,42 @@ impl NginxStaticSiteIngressService {
             )
         }
     }
+
+    fn configure_nginx(
+        &self,
+        data: NginxStaticSiteDeploymentData<'_>,
+        deployment_handle: &mut DeploymentHandle,
+    ) -> Result<(), io::Error> {
+        let config = self
+            .handlebars
+            .render_template(
+                include_str!("./static_site_nginx_template.handlebars"),
+                &data,
+            )
+            .unwrap();
+        let sites_available_path = self
+            .nginx_sites_available
+            .join(data.deployment_name.to_owned() + ".conf");
+        let sites_enabled_path = self
+            .nginx_sites_enabled
+            .join(data.deployment_name.to_owned() + ".conf");
+        std::fs::write(&sites_available_path, config).inspect_err(|e| {
+            writeln!(
+                deployment_handle.error(),
+                "Failed to write file {:?} due to error: {:?}",
+                sites_available_path,
+                e
+            )
+            .ok();
+        })?;
+        writeln!(deployment_handle.info(), "Enabling site through symlink").ok();
+        Ok(if !sites_enabled_path.exists() {
+            #[cfg(unix)]
+            std::os::unix::fs::symlink(sites_available_path, sites_enabled_path)?;
+            #[cfg(not(unix))]
+            panic!("Windows not supported");
+        })
+    }
 }
 
 impl StaticSiteIngressService for NginxStaticSiteIngressService {
@@ -158,47 +186,6 @@ impl StaticSiteIngressService for NginxStaticSiteIngressService {
         domain_names: &[String],
         mut deployment_handle: DeploymentHandle,
     ) -> io::Result<()> {
-        write!(deployment_handle.info(), "Configuring nginx").ok();
-
-        let data = NginxStaticSiteDeploymentData {
-            deployment_name,
-            disk_location,
-            domain_names: &domain_names.join(" "),
-        };
-
-        let config = self
-            .handlebars
-            .render_template(
-                include_str!("./static_site_nginx_template.handlebars"),
-                &data,
-            )
-            .unwrap();
-
-        let sites_available_path = self
-            .nginx_sites_available
-            .join(deployment_name.to_owned() + ".conf");
-        let sites_enabled_path = self
-            .nginx_sites_enabled
-            .join(deployment_name.to_owned() + ".conf");
-
-        std::fs::write(&sites_available_path, config).inspect_err(|e| {
-            writeln!(
-                deployment_handle.error(),
-                "Failed to write file {:?} due to error: {:?}",
-                sites_available_path,
-                e
-            )
-            .ok();
-        })?;
-
-        writeln!(deployment_handle.info(), "Enabling site through symlink").ok();
-        if !sites_enabled_path.exists() {
-            #[cfg(unix)]
-            std::os::unix::fs::symlink(sites_available_path, sites_enabled_path)?;
-            #[cfg(not(unix))]
-            panic!("Windows not supported");
-        }
-
         for domain_name in domain_names {
             self.set_dns_records(&mut deployment_handle, domain_name)
                 .map_err(io::Error::other)?;
@@ -209,6 +196,14 @@ impl StaticSiteIngressService for NginxStaticSiteIngressService {
             self.wait_for_dns_records(domain_name)
                 .map_err(io::Error::other)?;
         }
+
+        let data = NginxStaticSiteDeploymentData {
+            deployment_name,
+            disk_location,
+            domain_names: &domain_names.join(" "),
+        };
+        write!(deployment_handle.info(), "Configuring nginx").ok();
+        self.configure_nginx(data, &mut deployment_handle)?;
 
         writeln!(deployment_handle.info(), "Running certbot").ok();
         self.run_certbot(domain_names, &mut deployment_handle)?;
@@ -223,6 +218,33 @@ struct NginxStaticSiteDeploymentData<'a> {
     deployment_name: &'a str,
     disk_location: &'a Path,
     domain_names: &'a str,
+}
+
+#[derive(Deserialize, Serialize)]
+struct NginxIngressConfig {
+    certbot_command_name: String,
+    sites_available_path: PathBuf,
+    sites_enabled_path: PathBuf,
+    ip_v4_address: Option<Ipv4Addr>,
+    ip_v6_address: Option<Ipv6Addr>,
+    dns_wait_timeout_seconds: u64,
+    dns_fixed_wait_timeout_seconds: u64,
+    dns_use_fixed_wait_timeout: bool,
+}
+
+impl Default for NginxIngressConfig {
+    fn default() -> Self {
+        NginxIngressConfig {
+            certbot_command_name: "certbot".to_owned(),
+            sites_available_path: "/etc/nginx/sites-available".into(),
+            sites_enabled_path: "/etc/nginx/sites-enabled".into(),
+            ip_v4_address: None,
+            ip_v6_address: None,
+            dns_wait_timeout_seconds: 30,
+            dns_fixed_wait_timeout_seconds: 10,
+            dns_use_fixed_wait_timeout: true,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -289,6 +311,6 @@ mod test {
         assert!(site_symlink_path.is_symlink());
         let command_output = io::read_to_string(message_consumer.info()).unwrap();
 
-        assert!(command_output.contains("--nginx -n --domain localhost\n"))
+        assert!(command_output.contains("--nginx -n --expand --domain localhost\n"))
     }
 }
