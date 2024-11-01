@@ -15,8 +15,7 @@ fn rocket() -> _ {
     let deployment_manager = match pond_deployment::config::manager(&figment) {
         Ok(manager) => manager,
         Err(e) => {
-            eprintln!("Failed to create deployment manager: {:?}", e);
-            std::process::exit(1);
+            panic!("Failed to create deployment manager: {:?}", e);
         }
     };
 
@@ -29,5 +28,7 @@ fn rocket() -> _ {
 #[cfg(test)]
 fn rocket_test() -> rocket::Rocket<rocket::Build> {
     std::env::set_var("POND_PROFILE", "test");
+    std::env::set_var("POND_ROOT_DOMAIN_NAME", "example.com");
+    std::env::set_var("POND_ACCESS_TOKEN", "test_access_token");
     rocket()
 }

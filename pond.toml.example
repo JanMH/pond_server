@@ -1,11 +1,7 @@
-[default]
 address = "127.0.0.1"
 scripts_location = "./scripts"
 root_domain_name = "local.host"
 
 
-[default.limits]
+[limits]
 file = "1GB"
-
-[test]
-access_token = "test_access_token"
