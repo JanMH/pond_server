@@ -43,7 +43,12 @@ impl AsyncLogStream {
                     waker.wake();
                 }
             }
-            info_shared.lock().unwrap().info_closed = true;
+            let mut locked = info_shared.lock().unwrap();
+
+            locked.info_closed = true;
+            if let Some(waker) = locked.waker.take() {
+                waker.wake();
+            }
         });
 
         std::thread::spawn(move || {
@@ -61,7 +66,11 @@ impl AsyncLogStream {
                     waker.wake();
                 }
             }
-            error_shared.lock().unwrap().error_closed = true;
+            let mut locked = error_shared.lock().unwrap();
+            locked.error_closed = true;
+            if let Some(waker) = locked.waker.take() {
+                waker.wake();
+            }
         });
 
         Self { shared_state }
@@ -106,10 +115,11 @@ mod tests {
         let (mut handle, logs) = pond_deployment::deployment_handle();
         let jh = std::thread::spawn(move || {
             handle.info().write(&[0]).unwrap();
-            thread::sleep(std::time::Duration::from_millis(300));
+            thread::sleep(std::time::Duration::from_millis(50));
             handle.error().write(&[1]).unwrap();
-            thread::sleep(std::time::Duration::from_millis(300));
+            thread::sleep(std::time::Duration::from_millis(50));
             handle.info().write(&[2]).unwrap();
+            thread::sleep(std::time::Duration::from_millis(50));
         });
         let mut stream = super::AsyncLogStream::from_deployment_logs(logs);
         let mut buffer = vec![0; 4096];
@@ -121,8 +131,8 @@ mod tests {
             assert!(last_byte_read.elapsed() < std::time::Duration::from_millis(500));
             last_byte_read = Instant::now();
         }
-        jh.join().unwrap();
         let bytes_read = stream.read(&mut buffer).await.unwrap();
+        jh.join().unwrap();
         assert_eq!(bytes_read, 0);
     }
 }

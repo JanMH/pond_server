@@ -42,7 +42,7 @@ impl<'r> FromRequest<'r> for AuthenticatedUser {
 #[cfg(test)]
 mod test {
     use crate::http::auth::AUTHORIZATION;
-    use crate::{rocket, rocket_test};
+    use crate::rocket_test;
     use rocket::http::{Header, Status};
     use rocket::local::blocking::Client;
 

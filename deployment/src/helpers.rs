@@ -1,5 +1,7 @@
 use std::{
-    panic, process::{Command, ExitStatus, Stdio}, thread
+    panic,
+    process::{Command, ExitStatus, Stdio},
+    thread,
 };
 
 use crate::deployer::DeploymentHandle;
@@ -25,8 +27,8 @@ pub fn run_command(
     let result = spawned
         .wait()
         .inspect(|_r| debug!("Command terminated successfully: {:?}", command))
-        .inspect_err(|e| error!("Command {:?} failed {:?}",command, e));
-    
+        .inspect_err(|e| error!("Command {:?} failed {:?}", command, e));
+
     match err_jh.join() {
         Ok(result) => {
             result?;

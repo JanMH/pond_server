@@ -4,14 +4,14 @@ use crate::{deployer::handle::deployment_handle, Deployer, DeploymentLogs, Manif
 
 pub struct DeploymentManager {
     deployers: HashMap<&'static str, Arc<dyn Deployer + Send + Sync>>,
-    root_domain_name: String
+    root_domain_name: String,
 }
 
 impl DeploymentManager {
     pub fn new(root_domain_name: impl AsRef<str>) -> DeploymentManager {
         DeploymentManager {
             deployers: HashMap::new(),
-            root_domain_name: root_domain_name.as_ref().to_owned()
+            root_domain_name: root_domain_name.as_ref().to_owned(),
         }
     }
 
@@ -27,8 +27,8 @@ impl DeploymentManager {
             .ok_or(DeploymentError::UnknownDeploymentType)?
             .clone();
         let artifact_location = artifact_location.to_owned();
-        let (mut handle, log) =  deployment_handle();
-        
+        let (mut handle, log) = deployment_handle();
+
         thread::spawn(move || {
             match deployer.deploy(manifest, &artifact_location, handle.clone()) {
                 Ok(_) => writeln!(handle.info(), "Deployment succeeded").ok(),
@@ -37,16 +37,17 @@ impl DeploymentManager {
         });
         Ok(log)
     }
-    
+
     fn parse_manifest(&self, manifest: &str) -> Result<Manifest, DeploymentError> {
         let mut manifest: Manifest =
             toml::from_str(manifest).map_err(|_e| DeploymentError::CouldNotParseManifest)?;
         if manifest.domain_names.is_empty() {
-            manifest.domain_names.push(format!("{}.{}", manifest.name, self.root_domain_name));
+            manifest
+                .domain_names
+                .push(format!("{}.{}", manifest.name, self.root_domain_name));
         }
         Ok(manifest)
     }
-
 
     pub fn register_deployer<D: RegisterDeployment + Send + Sync + 'static>(
         &mut self,
@@ -57,12 +58,11 @@ impl DeploymentManager {
     }
 }
 
-
 #[derive(Debug)]
 pub enum DeploymentError {
     CouldNotParseManifest,
     UnknownDeploymentType,
-    IOError(io::Error)
+    IOError(io::Error),
 }
 
 pub trait RegisterDeployment: Deployer {
